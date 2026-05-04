@@ -1,0 +1,186 @@
+# ----------------------------------------------------------------------------
+# Interval Bisection Sampling of Bias Thresholds (1D)
+# 
+# This function uses interval bisection to approximate decision-invariant
+# bias adjustment thresholds for network meta-analysis, with options to use 
+# either preset or user-defined decision functions. Thresholds represent 
+# the amount of adjustment needed in an individual data point before the 
+# treatment decision changes.
+#
+# @param data  Data frame containing the NMA data that is passed as an argument
+#    to decision_function
+# @param decision_function  Function accepting NMA data and bias adjustment
+#    used to implement the decision rule at each step of the boundary finding 
+#    method
+# @param indices  Numerical vector indicating the indices of the sequential list
+#    of data points for which bias thresholds will be estimated
+# @param admin  Administrative cutoff value for bias adjustment beyond which 
+#    decision invariance will not be assessed
+# @param tol  Tolerance for the absolute difference between converging boundary
+#    estimates
+# @param preset  Numeric value determining whether a specific preset 
+#    decision_function should be implemented rather than a user-supplied function
+# ----------------------------------------------------------------------------
+
+bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5, 
+                        tol = 10**(-3), preset = 1) {
+  
+  # set decision_function to frequentist threshold analysis using the 
+  # projection matrix with max efficacy as default
+  if (preset == 1) {
+    # compute best treatment for the original biased effect estimates
+    n <- length(data$vec)
+    decision_function <- function(data,bias = rep(0,n)) {
+      if ("C" %in% names(data)) {
+        # allow for arm-level bias assessment using the matrix mapping arms to
+        # contrasts
+        H <- solve(t(data$X)%*%(data$W)%*%(data$X))%*%t(data$X)%*%(data$W)%*%(data$C)
+      } else {
+        H <- solve(t(data$X)%*%(data$W)%*%(data$X))%*%t(data$X)%*%(data$W)
+      }
+      
+      trtm_estimates <- H%*%(data$vec+bias)
+      if (all(trtm_estimates < 0)) {
+        best <- 0
+      } else {
+        best <- which.max(trtm_estimates)
+      }
+      return(best)
+    }
+  }
+  
+  # output warning if an invalid preset was selected and no decision function
+  # was supplied
+  if (is.null(decision_function)) {
+    stop("Invalid preset selected with no alternative decision function provided")
+  }
+  
+  best <- decision_function(data)
+  
+  # implement random bias adjustment at each selected data point and use
+  # IVT and interval bisection method to compute thresholds
+  adjusted <- c()
+  ad_brk <- FALSE
+  thresh.df <- data.frame(matrix(ncol=4,nrow=0))
+  
+  for (ind in indices) {
+    
+    # ensure initial bias is greater than tol
+    bias <- runif(1,min = tol, max = 1)
+    b0 <- 0
+    b1 <- bias
+    b2 <- admin
+    best0 <- best
+    bvec <- rep(0,n)
+    bvec[ind] <- bias
+    best1 <- decision_function(data, bias = bvec)
+    bvec[ind] <- admin
+    best2 <- decision_function(data, bias = bvec)
+    
+    if (best2 == best) {
+      # record administrative threshold if recommendation doesn't shift
+      ad_brk <- TRUE
+      u <- admin
+      trtU <- "Admin"
+    } else {
+      # iterate until biases are within tolerance
+      while(abs(b2 - b0) > tol) {
+        # select interval [b0,b1] or [b1,b2], then obtain midpoint of 
+        # chosen interval and update variables
+        if (best0 != best1) {
+          min <- b0
+          max <- b1
+          mid <- min + (b1 - b0)/2
+          b0 <- min
+          b1 <- mid
+          b2 <- max
+        } else if (best1 != best2) {
+          min <- b1
+          max <- b2
+          mid <- min + (b2 - b1)/2
+          b0 <- min
+          b1 <- mid
+          b2 <- max
+        }
+        # update treatment recommendations for each point of bias
+        bvec[ind] <- b0
+        best0 <- decision_function(data, bias = bvec)
+        bvec[ind] <- b1
+        best1 <- decision_function(data, bias = bvec)
+        bvec[ind] <- b2
+        best2 <- decision_function(data, bias = bvec)
+      }
+      u <- b0
+      trtU <- best2
+    }
+    
+    ## repeat for negative bias threshold
+    
+    # ensure initial bias is less than -tol
+    bias <- runif(1,min = -1, max = -tol)
+    b0 <- 0
+    b1 <- bias
+    b2 <- -admin
+    best0 <- best
+    bvec <- rep(0,length(vec))
+    bvec[ind] <- bias
+    best1 <- decision_function(data, bias = bvec)
+    bvec[ind] <- -admin
+    best2 <- decision_function(data, bias = bvec)
+    
+    if (best2 == best) {
+      # record negative administrative threshold if recommendation doesn't shift
+      ad_brk <- TRUE
+      l <- -admin
+      trtL <- "Admin"
+    } else {
+      # iterate until biases are within tolerance
+      while(abs(b2 - b0) > tol) {
+        # select interval [b0,b1] or [b1,b2], then obtain midpoint of 
+        # chosen interval and update variables
+        if (best0 != best1){
+          min <- b0
+          max <- b1
+          mid <- min + (b1 - b0)/2
+          b0 <- min
+          b1 <- mid
+          b2 <- max
+        } else if (best1 != best2) {
+          min <- b1
+          max <- b2
+          mid <- min + (b2 - b1)/2
+          b0 <- min
+          b1 <- mid
+          b2 <- max
+        }
+        # update treatment recs for each point of bias
+        bvec[ind] <- b0
+        best0 <- decision_function(data, bias = bvec)
+        bvec[ind] <- b1
+        best1 <- decision_function(data, bias = bvec)
+        bvec[ind] <- b2
+        best2 <- decision_function(data, bias = bvec)
+      }
+      l <- b0
+      trtL <- best2
+    }
+    
+    # store bias threshold and admin indicator/new superior treatment
+    # report the point just inside the invariant region
+    row <- c(l,trtL,u,trtU)
+    thresh.df <- rbind(thresh.df, row)
+  }
+  # convert bias columns to numeric
+  thresh.df[, c(1,3)] <- apply(thresh.df[, c(1,3)], 2, 
+                               function(x) as.numeric(as.character(x)))
+  
+  # return bias values and index of treatment that became superior at each switch 
+  # (or that it was admin cutoff, indicating a potential invariant region)
+  colnames(thresh.df) <- c("- Bias Thresh", "- New Rec", 
+                           "+ Bias Thresh", "+ New Rec")
+  return(thresh.df)
+}
+
+
+
+
