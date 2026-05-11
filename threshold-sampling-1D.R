@@ -20,21 +20,24 @@
 #    estimates
 # @param preset  Numeric value determining whether a specific preset 
 #    decision_function should be implemented rather than a user-supplied function
+# @param parallel  Boolean determining whether to parallelize the threshold 
+#    convergence method using all available cores (as opposed to sequential 
+#    evaluation)
 # ----------------------------------------------------------------------------
 
 bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5, 
-                        tol = 10**(-3), preset = 1) {
+                        tol = 10**(-3), preset = 1, parallel = FALSE) {
   
   # set decision_function to frequentist threshold analysis using the 
   # projection matrix with max efficacy as default
   if (preset == 1) {
-    # compute best treatment for the original biased effect estimates
     n <- length(data$vec)
-    decision_function <- function(data,bias = rep(0,n)) {
+    decision_function <- function(data, bias = rep(0,n)) {
       if ("C" %in% names(data)) {
         # allow for arm-level bias assessment using the matrix mapping arms to
         # contrasts
-        H <- solve(t(data$X)%*%(data$W)%*%(data$X))%*%t(data$X)%*%(data$W)%*%(data$C)
+        H <- solve(t(data$X)%*%(data$W)%*%(data$X))%*%t(data$X)%*%(data$W)%*%
+          (data$C)
       } else {
         H <- solve(t(data$X)%*%(data$W)%*%(data$X))%*%t(data$X)%*%(data$W)
       }
@@ -59,11 +62,10 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
   
   # implement random bias adjustment at each selected data point and use
   # IVT and interval bisection method to compute thresholds
-  adjusted <- c()
-  ad_brk <- FALSE
   thresh.df <- data.frame(matrix(ncol=4,nrow=0))
   
-  for (ind in indices) {
+  # define function for implementing threshold convergence
+  thresh_conv <- function(ind) {
     
     # ensure initial bias is greater than tol
     bias <- runif(1,min = tol, max = 1)
@@ -79,7 +81,6 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
     
     if (best2 == best) {
       # record administrative threshold if recommendation doesn't shift
-      ad_brk <- TRUE
       u <- admin
       trtU <- "Admin"
     } else {
@@ -122,7 +123,7 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
     b1 <- bias
     b2 <- -admin
     best0 <- best
-    bvec <- rep(0,length(vec))
+    bvec <- rep(0,n)
     bvec[ind] <- bias
     best1 <- decision_function(data, bias = bvec)
     bvec[ind] <- -admin
@@ -130,7 +131,6 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
     
     if (best2 == best) {
       # record negative administrative threshold if recommendation doesn't shift
-      ad_brk <- TRUE
       l <- -admin
       trtL <- "Admin"
     } else {
@@ -168,8 +168,28 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
     # store bias threshold and admin indicator/new superior treatment
     # report the point just inside the invariant region
     row <- c(l,trtL,u,trtU)
-    thresh.df <- rbind(thresh.df, row)
+    return(row)
   }
+  
+  # allow for parallelization of boundary convergence method
+  if (parallel) {
+    library(doFuture)
+    plan(multisession)
+    thresh <- foreach(ind = indices, .options.future = 
+                        list(seed = TRUE)) %dofuture% {
+      thresh_conv(ind)
+    }
+    # reform the data.frame using futures
+    thresh.df <- t(as.data.frame(thresh))
+    rownames(thresh.df) <- NULL
+    thresh.df <- as.data.frame(thresh.df)
+  } else {
+    for (ind in indices) {
+      row <- thresh_conv(ind)
+      thresh.df <- rbind(thresh.df, row)
+    }
+  }
+  
   # convert bias columns to numeric
   thresh.df[, c(1,3)] <- apply(thresh.df[, c(1,3)], 2, 
                                function(x) as.numeric(as.character(x)))

@@ -1,11 +1,11 @@
 # ----------------------------------------------------------------------------
-# Interval Bisection Sampling of Bias Thresholds (1D)
+# Interval Bisection Sampling of Bias Thresholds (2D)
 # 
 # This function uses interval bisection to approximate decision-invariant
 # bias adjustment thresholds for network meta-analysis, with options to use 
 # either preset or user-defined decision functions. Thresholds represent 
-# the amount of adjustment needed in an individual data point before the 
-# treatment decision changes.
+# the amount of simultaneous adjustment needed in up to two individual data 
+# points before the treatment decision changes.
 #
 # @param data  Data frame containing the NMA data that is passed as an argument
 #    to decision_function
@@ -29,22 +29,25 @@
 #    a plot of the invariant region
 # @param preset  Numeric value determining whether a specific preset 
 #    decision_function should be implemented rather than a user-supplied function
+# @param parallel  Boolean determining whether to parallelize the threshold 
+#    convergence method using all available cores (as opposed to sequential 
+#    evaluation)
 # ----------------------------------------------------------------------------
 
 bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5, 
                           tol = 10**(-3), rad_jump = pi/90, dist_tol = 0.5, 
-                          plot = TRUE, preset = 1){
+                          plot = TRUE, preset = 1, parallel = FALSE){
   
   # set decision_function to frequentist threshold analysis using the 
   # projection matrix with max efficacy as default
   if (preset == 1) {
-    # compute best treatment for the original biased effect estimates
     n <- length(data$vec)
-    decision_function <- function(data,bias = rep(0,n)) {
+    decision_function <- function(data, bias = rep(0,n)) {
       if ("C" %in% names(data)) {
         # allow for arm-level bias assessment using the matrix mapping arms to
         # contrasts
-        H <- solve(t(data$X)%*%(data$W)%*%(data$X))%*%t(data$X)%*%(data$W)%*%(data$C)
+        H <- solve(t(data$X)%*%(data$W)%*%(data$X))%*%t(data$X)%*%(data$W)%*%
+          (data$C)
       } else {
         H <- solve(t(data$X)%*%(data$W)%*%(data$X))%*%t(data$X)%*%(data$W)
       }
@@ -73,128 +76,162 @@ bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5,
     return(sqrt(sum((vec1 - vec2)**2)))
   }
   
+  library(DescTools)
+  
   # implement random 2D bias adjustment at each selected data point and use
   # IVT and interval bisection method to compute thresholds
-  adjusted <- c()
-  ad_brk <- FALSE
-  thresh.df <- data.frame(matrix(ncol=3,nrow=0))
-  theta <- rad_jump
-  grain <- 0
-  while (theta <= 2*pi) {
-    # ensure initial bias is greater than tol
-    r <- runif(1,min = tol, max = 1)
-    r0 <- 0
-    r1 <- r
-    r2 <- admin
-    best0 <- best
-    
-    bvec <- rep(0,n)
-    for (i in ind1) {
-      bvec[i] <- PolToCart(r,theta)$x
-    }
-    for (i in ind2) {
-      bvec[i] <- PolToCart(r,theta)$y
-    }
-    best1 <- decision_function(data, bias = bvec)
-    
-    for (i in ind1) {
-      bvec[i] <- PolToCart(admin,theta)$x
-    }
-    for (i in ind2) {
-      bvec[i] <- PolToCart(admin,theta)$y
-    }
-    best2 <- decision_function(data, bias = bvec)
-    
-    if (best2 == best) {
-      # record administrative threshold if recommendation doesn't shift
-      x <- PolToCart(admin,theta)$x
-      y <- PolToCart(admin,theta)$y
-      if (nrow(thresh.df) != 0) {
-        if (eucDist(c(x,y),c(as.numeric(thresh.df[nrow(thresh.df),1]),
-                             as.numeric(thresh.df[nrow(thresh.df),2]))) > dist_tol) {
-          # if sequential points are not within dist_tol of each other by 
-          # Euclidean distance, decrease rad_jump
-          grain <- grain + 1
-          theta <- theta - rad_jump/(2*grain)
-          next
-        }
-      }
-      ad_brk <- TRUE
-      trt <- "Admin"
-    } else {
-      # iterate until biases are within tolerance
-      while(abs(r2 - r0) > tol) {
-        # select interval [r0,r1] or [r1,r2], then obtain midpoint of 
-        # chosen interval and update variables
-        if (best0 != best1) {
-          min <- r0
-          max <- r1
-          mid <- min + (r1 - r0)/2
-          r0 <- min
-          r1 <- mid
-          r2 <- max
-        } else if (best1 != best2) {
-          min <- r1
-          max <- r2
-          mid <- min + (r2 - r1)/2
-          r0 <- min
-          r1 <- mid
-          r2 <- max
-        }
-        # update treatment recommendations for each point of bias
-        for (i in ind1) {
-          bvec[i] <- PolToCart(r0,theta)$x
-        }
-        for (i in ind2) {
-          bvec[i] <- PolToCart(r0,theta)$y
-        }
-        best0 <- decision_function(data, bias = bvec)
-        
-        for (i in ind1) {
-          bvec[i] <- PolToCart(r1,theta)$x
-        }
-        for (i in ind2) {
-          bvec[i] <- PolToCart(r1,theta)$y
-        }
-        best1 <- decision_function(data, bias = bvec)
-        
-        for (i in ind1) {
-          bvec[i] <- PolToCart(r2,theta)$x
-        }
-        for (i in ind2) {
-          bvec[i] <- PolToCart(r2,theta)$y
-        }
-        best2 <- decision_function(data, bias = bvec)
-      }
-      x <- PolToCart(r0,theta)$x
-      y <- PolToCart(r0,theta)$y
-      trt <- best2
-      if (nrow(thresh.df) != 0) {
-        if (eucDist(c(x,y),c(as.numeric(thresh.df[nrow(thresh.df),1]),
-                             as.numeric(thresh.df[nrow(thresh.df),2]))) > dist_tol) {
-          # if sequential points are not within dist_tol of each other by 
-          # Euclidean distance, decrease rad_jump
-          grain <- grain + 1
-          theta <- theta - rad_jump/(2*grain)
-          next
-        }
-      }
-    }
-    theta <- theta + rad_jump
-    grain <- 0
-    
-    # store bias threshold and admin indicator/new superior treatment
-    # report the point just inside the invariant region
-    row <- c(x,y,trt)
-    thresh.df <- rbind(thresh.df, row)
-  }
-  # convert bias columns to numeric data type
-  thresh.df[, c(1,2)] <- apply(thresh.df[, c(1,2)], 2, 
-                               function(x) as.numeric(as.character(x)))
   
-  # return bias values and index of treatment that became superior at each switch 
-  # (or that it was admin cutoff, indicating a potential invariant region)
-  colnames(thresh.df) <- c("Bias_Index_1", "Bias_Index_2", "New_Rec")
+  n_cores <- availableCores()
+  
+  # define function for implementing threshold convergence
+  thresh_conv <- function(core, n_cores) {
+    thresh.df <- data.frame(matrix(ncol=4,nrow=0))
+    theta <- 2*pi*(core-1)/n_cores
+    grain <- 0
+    while (theta <= 2*pi*(core/n_cores)) {
+      # ensure initial bias is greater than tol
+      r <- runif(1,min = tol, max = 1)
+      r0 <- 0
+      r1 <- r
+      r2 <- admin
+      best0 <- best
+      
+      bvec <- rep(0,n)
+      for (i in ind1) {
+        bvec[i] <- PolToCart(r,theta)$x
+      }
+      for (i in ind2) {
+        bvec[i] <- PolToCart(r,theta)$y
+      }
+      best1 <- decision_function(data, bias = bvec)
+      
+      for (i in ind1) {
+        bvec[i] <- PolToCart(admin,theta)$x
+      }
+      for (i in ind2) {
+        bvec[i] <- PolToCart(admin,theta)$y
+      }
+      best2 <- decision_function(data, bias = bvec)
+      
+      if (best2 == best) {
+        # record administrative threshold if recommendation doesn't shift
+        x <- PolToCart(admin,theta)$x
+        y <- PolToCart(admin,theta)$y
+        if (nrow(thresh.df) != 0) {
+          if (eucDist(c(x,y),c(as.numeric(thresh.df[nrow(thresh.df),1]),
+                               as.numeric(thresh.df[nrow(thresh.df),2]))) > dist_tol) {
+            # if sequential points are not within dist_tol of each other by 
+            # Euclidean distance, decrease rad_jump
+            grain <- grain + 1
+            theta <- theta - rad_jump/(2*grain)
+            next
+          }
+        }
+        trt <- "Admin"
+      } else {
+        # iterate until biases are within tolerance
+        while(abs(r2 - r0) > tol) {
+          # select interval [r0,r1] or [r1,r2], then obtain midpoint of 
+          # chosen interval and update variables
+          if (best0 != best1) {
+            min <- r0
+            max <- r1
+            mid <- min + (r1 - r0)/2
+            r0 <- min
+            r1 <- mid
+            r2 <- max
+          } else if (best1 != best2) {
+            min <- r1
+            max <- r2
+            mid <- min + (r2 - r1)/2
+            r0 <- min
+            r1 <- mid
+            r2 <- max
+          }
+          # update treatment recommendations for each point of bias
+          for (i in ind1) {
+            bvec[i] <- PolToCart(r0,theta)$x
+          }
+          for (i in ind2) {
+            bvec[i] <- PolToCart(r0,theta)$y
+          }
+          best0 <- decision_function(data, bias = bvec)
+          
+          for (i in ind1) {
+            bvec[i] <- PolToCart(r1,theta)$x
+          }
+          for (i in ind2) {
+            bvec[i] <- PolToCart(r1,theta)$y
+          }
+          best1 <- decision_function(data, bias = bvec)
+          
+          for (i in ind1) {
+            bvec[i] <- PolToCart(r2,theta)$x
+          }
+          for (i in ind2) {
+            bvec[i] <- PolToCart(r2,theta)$y
+          }
+          best2 <- decision_function(data, bias = bvec)
+        }
+        x <- PolToCart(r0,theta)$x
+        y <- PolToCart(r0,theta)$y
+        trt <- best2
+        if (nrow(thresh.df) != 0) {
+          if (eucDist(c(x,y),c(as.numeric(thresh.df[nrow(thresh.df),1]),
+                               as.numeric(thresh.df[nrow(thresh.df),2]))) > dist_tol) {
+            # if sequential points are not within dist_tol of each other by 
+            # Euclidean distance, decrease rad_jump
+            grain <- grain + 1
+            theta <- theta - rad_jump/(2*grain)
+            next
+          }
+        }
+      }
+      # if the last point has met dist_tol with the endpoint, cease iteration
+      if (theta == 2*pi*(core/n_cores)) {
+        break
+      }
+      
+      # store bias threshold and admin indicator/new superior treatment
+      # report the point just inside the invariant region
+      row <- c(x,y,trt,theta)
+      thresh.df <- rbind(thresh.df, row)
+      
+      # update theta
+      theta <- theta + rad_jump
+      grain <- 0
+      
+      # cap evaluation of dist_tol at end point
+      if (theta >= 2*pi*(core/n_cores)) {
+        theta <- 2*pi*(core/n_cores)
+      }
+    }
+    colnames(thresh.df) <- c("Bias_Index_1", "Bias_Index_2", "New_Rec","Theta")
+    return(thresh.df) 
+  }
+  
+  # allow for parallelized option
+  if (parallel) {
+    library(doFuture)
+    plan(multisession)
+    thresh <- foreach(core = 1:n_cores, .options.future = 
+                        list(seed = TRUE)) %dofuture% {
+                          thresh_conv(core, n_cores)
+                        }
+    # reform the data.frame using futures
+    thresh.df <- Reduce(function(x, y) merge(x, y, all=TRUE), thresh)
+    rownames(thresh.df) <- NULL
+    
+  } else {
+    # evaluate once sequentially
+    thresh.df <- thresh_conv(1, 1)  
+  }
+  
+  # sort and convert bias columns to numeric data type
+  thresh.df[, c(1,2,4)] <- apply(thresh.df[, c(1,2,4)], 2, 
+                                 function(x) as.numeric(as.character(x)))
+  thresh.df <- thresh.df[order(thresh.df$Theta),]
+  thresh.df <- thresh.df[,1:3]
   
   if (plot == TRUE) {
     # print out a graph of the boundary points of the region
@@ -203,6 +240,7 @@ bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5,
     plt <- ggplot(data = thresh.df, aes(x = Bias_Index_1, y = Bias_Index_2)) +
       geom_hline(yintercept = 0, size = 0.2, color = "grey") +
       geom_vline(xintercept = 0, size = 0.2, color = "grey") +
+      geom_polygon(alpha = 0.5, fill = "grey") +
       geom_point(aes(colour = as.factor(New_Rec))) +
       geom_circle(data = data.frame(null = c(0)),aes(x0=0,y0=0,r=admin), 
                   inherit.aes=FALSE, linetype=2) +
@@ -213,6 +251,8 @@ bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5,
     print(plt)
   }
   
+  # return bias values and index of treatment that became superior at each switch 
+  # (or that it was admin cutoff, indicating a potential invariant region)
   return(thresh.df)
 }
 
