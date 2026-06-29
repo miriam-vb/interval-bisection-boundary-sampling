@@ -260,17 +260,12 @@ bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5,
 # 
 # This function allows for repeated plotting of the decision-invariant bias 
 # adjustment thresholds and invariant region for two-dimensional threshold 
-# analysis, and is called by \code{threshold-sampling-2D} automatically.
+# analysis, and is called by \code{bias-thresh-2D} automatically.
 #
-# @param thresh.df  Data frame containing the estimated decision-invariant bias
-#    adjustment thresholds obtained as output of the threshold-sampling-2D 
-#    function 
-# @param ind1  Numerical vector indicating the indices of the sequential list
-#    of data points for which the first generic bias adjustment were applied
-# @param ind2  Numerical vector indicating the indices of the sequential list
-#    of data points for which the second generic bias adjustment were applied
-# @param admin  Administrative cutoff value for bias adjustment beyond which 
-#    decision invariance was not assessed for the threshold-sampling-2D call 
+# @param thresh_obj  List object obtained from \code{bias-thresh-2D} function 
+#    call containing the estimated decision-invariant bias
+#    adjustment thresholds and a list of the arguments defined in the 
+#    original function call 
 # ----------------------------------------------------------------------------
 
 print_thresh_2D <- function(thresh_obj){
