@@ -23,6 +23,11 @@
 # @param parallel  Boolean determining whether to parallelize the threshold 
 #    convergence method using all available cores (as opposed to sequential 
 #    evaluation)
+#
+# @return  List containing thresh.df, a data frame of thresholds and new 
+#    recommended treatments with columns \code{- Bias Thresh}, \code{- New Rec}, 
+#    \code{+ Bias Thresh}, and \code{+ New Rec}, and args, a list of the 
+#    arguments defined in the original function call
 # ----------------------------------------------------------------------------
 
 bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5, 
@@ -44,9 +49,9 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
       
       trtm_estimates <- H%*%(data$vec+bias)
       if (all(trtm_estimates < 0)) {
-        best <- 0
+        best <- c(0)
       } else {
-        best <- which.max(trtm_estimates)
+        best <- c(which.max(trtm_estimates))
       }
       return(best)
     }
@@ -79,7 +84,7 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
     bvec[ind] <- admin
     best2 <- decision_function(data, bias = bvec)
     
-    if (best2 == best) {
+    if (setequal(best2,best)) {
       # record administrative threshold if recommendation doesn't shift
       u <- admin
       trtU <- "Admin"
@@ -88,14 +93,14 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
       while(abs(b2 - b0) > tol) {
         # select interval [b0,b1] or [b1,b2], then obtain midpoint of 
         # chosen interval and update variables
-        if (best0 != best1) {
+        if (!setequal(best0,best1)) {
           min <- b0
           max <- b1
           mid <- min + (b1 - b0)/2
           b0 <- min
           b1 <- mid
           b2 <- max
-        } else if (best1 != best2) {
+        } else if (!setequal(best1,best2)) {
           min <- b1
           max <- b2
           mid <- min + (b2 - b1)/2
@@ -112,7 +117,7 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
         best2 <- decision_function(data, bias = bvec)
       }
       u <- b0
-      trtU <- best2
+      trtU <- paste0(best2, collapse = " ")
     }
     
     ## repeat for negative bias threshold
@@ -129,7 +134,7 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
     bvec[ind] <- -admin
     best2 <- decision_function(data, bias = bvec)
     
-    if (best2 == best) {
+    if (setequal(best2,best)) {
       # record negative administrative threshold if recommendation doesn't shift
       l <- -admin
       trtL <- "Admin"
@@ -138,14 +143,14 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
       while(abs(b2 - b0) > tol) {
         # select interval [b0,b1] or [b1,b2], then obtain midpoint of 
         # chosen interval and update variables
-        if (best0 != best1){
+        if (!setequal(best0,best1)){
           min <- b0
           max <- b1
           mid <- min + (b1 - b0)/2
           b0 <- min
           b1 <- mid
           b2 <- max
-        } else if (best1 != best2) {
+        } else if (!setequal(best1,best2)) {
           min <- b1
           max <- b2
           mid <- min + (b2 - b1)/2
@@ -162,7 +167,7 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
         best2 <- decision_function(data, bias = bvec)
       }
       l <- b0
-      trtL <- best2
+      trtL <- paste0(best2, collapse = " ")
     }
     
     # store bias threshold and admin indicator/new superior treatment
@@ -198,7 +203,9 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
   # (or that it was admin cutoff, indicating a potential invariant region)
   colnames(thresh.df) <- c("- Bias Thresh", "- New Rec", 
                            "+ Bias Thresh", "+ New Rec")
-  return(thresh.df)
+  return(list(thresh.df = thresh.df, args = list(data = data, 
+          decision_function = decision_function, indices = indices, 
+          admin = admin, tol = tol, preset = preset, parallel = parallel)))
 }
 
 

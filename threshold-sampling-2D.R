@@ -32,6 +32,11 @@
 # @param parallel  Boolean determining whether to parallelize the threshold 
 #    convergence method using all available cores (as opposed to sequential 
 #    evaluation)
+#
+# @return  List containing thresh.df, a data frame of thresholds and new 
+#    recommended treatments with columns \code{Bias_Ind_1}, \code{Bias_Ind_2}, 
+#    and \code{New_Rec}, and args, a list of the arguments defined in the 
+#    original function call
 # ----------------------------------------------------------------------------
 
 bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5, 
@@ -80,7 +85,7 @@ bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5,
   
   # implement random 2D bias adjustment at each selected data point and use
   # IVT and interval bisection method to compute thresholds
-  
+  library(doFuture)
   n_cores <- availableCores()
   
   # define function for implementing threshold convergence
@@ -206,13 +211,12 @@ bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5,
         theta <- 2*pi*(core/n_cores)
       }
     }
-    colnames(thresh.df) <- c("Bias_Index_1", "Bias_Index_2", "New_Rec","Theta")
+    colnames(thresh.df) <- c("Bias_Ind_1", "Bias_Ind_2", "New_Rec","Theta")
     return(thresh.df) 
   }
   
   # allow for parallelized option
   if (parallel) {
-    library(doFuture)
     plan(multisession)
     thresh <- foreach(core = 1:n_cores, .options.future = 
                         list(seed = TRUE)) %dofuture% {
@@ -233,26 +237,80 @@ bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5,
   thresh.df <- thresh.df[order(thresh.df$Theta),]
   thresh.df <- thresh.df[,1:3]
   
-  if (plot == TRUE) {
-    # print out a graph of the boundary points of the region
-    library(ggplot2)
-    library(ggforce)
-    plt <- ggplot(data = thresh.df, aes(x = Bias_Index_1, y = Bias_Index_2)) +
-      geom_hline(yintercept = 0, size = 0.2, color = "grey") +
-      geom_vline(xintercept = 0, size = 0.2, color = "grey") +
-      geom_polygon(alpha = 0.5, fill = "grey") +
-      geom_point(aes(colour = as.factor(New_Rec))) +
-      geom_circle(data = data.frame(null = c(0)),aes(x0=0,y0=0,r=admin), 
-                  inherit.aes=FALSE, linetype=2) +
-      labs(x = "Bias (1st Index)",y="Bias (2nd Index)",
-           color = "New Recommendation") +
-      coord_fixed() +
-      theme_classic()
-    print(plt)
-  }
   
   # return bias values and index of treatment that became superior at each switch 
   # (or that it was admin cutoff, indicating a potential invariant region)
-  return(thresh.df)
+  thresh_obj <- list(thresh.df = thresh.df, args = list(data = data, 
+                   decision_function = decision_function, ind1 = ind1, 
+                   ind2 = ind2, admin = admin, tol = tol, rad_jump = rad_jump, 
+                   dist_tol = dist_tol, plot = plot, preset = preset, 
+                   parallel = parallel))
+  
+  if (plot == TRUE) {
+    # print out a graph of the boundary points of the region
+    print_thresh_2D(thresh_obj)
+  }
+  
+  return(thresh_obj)
+}
+
+
+# ----------------------------------------------------------------------------
+# Visualization of Bias Thresholds (2D)
+# 
+# This function allows for repeated plotting of the decision-invariant bias 
+# adjustment thresholds and invariant region for two-dimensional threshold 
+# analysis, and is called by \code{threshold-sampling-2D} automatically.
+#
+# @param thresh.df  Data frame containing the estimated decision-invariant bias
+#    adjustment thresholds obtained as output of the threshold-sampling-2D 
+#    function 
+# @param ind1  Numerical vector indicating the indices of the sequential list
+#    of data points for which the first generic bias adjustment were applied
+# @param ind2  Numerical vector indicating the indices of the sequential list
+#    of data points for which the second generic bias adjustment were applied
+# @param admin  Administrative cutoff value for bias adjustment beyond which 
+#    decision invariance was not assessed for the threshold-sampling-2D call 
+# ----------------------------------------------------------------------------
+
+print_thresh_2D <- function(thresh_obj){
+  # load packages
+  library(ggplot2)
+  library(ggforce)
+  
+  # import arguments from bias_thresh_2D call
+  thresh.df <- thresh_obj$thresh.df
+  ind1 <- thresh_obj$args$ind1
+  ind2 <- thresh_obj$args$ind2
+  admin <- thresh_obj$args$admin
+  
+  # define labels for sets or individual indices of bias adjustment
+  biasX <- paste0("Bias (", ifelse(length(ind1) > 1, "Indices ", "Index "), 
+                  paste0(ind1, collapse = ", "), ")")
+  biasY <- paste0("Bias (", ifelse(length(ind2) > 1, "Indices ", "Index "), 
+                  paste0(ind2, collapse = ", "), ")")
+  
+  plt <- ggplot(data = thresh.df, aes(x = Bias_Ind_1, y = Bias_Ind_2)) +
+    geom_hline(yintercept = 0, size = 0.2, color = "grey") +
+    geom_vline(xintercept = 0, size = 0.2, color = "grey") +
+    
+    # fill the approximate invariant region
+    geom_polygon(alpha = 0.5, fill = "grey") +
+    
+    # colour the threshold in accordance with the recommendation shift
+    geom_point(aes(colour = as.factor(New_Rec))) +
+    
+    # visualize the boundary of the administrative cutoff
+    geom_circle(data = data.frame(null = c(0)), aes(x0=0,y0=0,r=admin), 
+                inherit.aes=FALSE, linetype=2) +
+    
+    # label the plot in accordance with the settings of the boundary finding
+    # function call
+    labs(x = biasX, y=biasY, color = "New Recommendation") +
+    coord_fixed() +
+    theme_classic()
+  
+  # print ggplot object
+  print(plt)
 }
 
