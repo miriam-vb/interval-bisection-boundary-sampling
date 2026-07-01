@@ -59,9 +59,9 @@ bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5,
       
       trtm_estimates <- H%*%(data$vec+bias)
       if (all(trtm_estimates < 0)) {
-        best <- 0
+        best <- c(0)
       } else {
-        best <- which.max(trtm_estimates)
+        best <- c(which.max(trtm_estimates))
       }
       return(best)
     }
@@ -118,7 +118,7 @@ bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5,
       }
       best2 <- decision_function(data, bias = bvec)
       
-      if (best2 == best) {
+      if (setequal(best2, best)) {
         # record administrative threshold if recommendation doesn't shift
         x <- PolToCart(admin,theta)$x
         y <- PolToCart(admin,theta)$y
@@ -138,14 +138,14 @@ bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5,
         while(abs(r2 - r0) > tol) {
           # select interval [r0,r1] or [r1,r2], then obtain midpoint of 
           # chosen interval and update variables
-          if (best0 != best1) {
+          if (!setequal(best0,best1)) {
             min <- r0
             max <- r1
             mid <- min + (r1 - r0)/2
             r0 <- min
             r1 <- mid
             r2 <- max
-          } else if (best1 != best2) {
+          } else if (!setequal(best1,best2)) {
             min <- r1
             max <- r2
             mid <- min + (r2 - r1)/2
@@ -180,7 +180,7 @@ bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5,
         }
         x <- PolToCart(r0,theta)$x
         y <- PolToCart(r0,theta)$y
-        trt <- best2
+        trt <- paste0(best2, collapse = " ")
         if (nrow(thresh.df) != 0) {
           if (eucDist(c(x,y),c(as.numeric(thresh.df[nrow(thresh.df),1]),
                                as.numeric(thresh.df[nrow(thresh.df),2]))) > dist_tol) {
@@ -286,8 +286,8 @@ print_thresh_2D <- function(thresh_obj){
                   paste0(ind2, collapse = ", "), ")")
   
   plt <- ggplot(data = thresh.df, aes(x = Bias_Ind_1, y = Bias_Ind_2)) +
-    geom_hline(yintercept = 0, size = 0.2, color = "grey") +
-    geom_vline(xintercept = 0, size = 0.2, color = "grey") +
+    geom_hline(yintercept = 0, linewidth = 0.2, color = "grey") +
+    geom_vline(xintercept = 0, linewidth = 0.2, color = "grey") +
     
     # fill the approximate invariant region
     geom_polygon(alpha = 0.5, fill = "grey") +
