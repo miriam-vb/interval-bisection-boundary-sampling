@@ -266,9 +266,17 @@ bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5,
 #    call containing the estimated decision-invariant bias
 #    adjustment thresholds and a list of the arguments defined in the 
 #    original function call 
+# @param labX  String object containing the label for the x axis of the plot. 
+#    Defaults to NULL, in which case the label is automatically generated to
+#    report the set of indices (ind1) to which the first bias adjustment was 
+#    applied.
+# @param labY  String object containing the label for the y axis of the plot. 
+#    Defaults to NULL, in which case the label is automatically generated to
+#    report the set of indices (ind2) to which the second bias adjustment was 
+#    applied.
 # ----------------------------------------------------------------------------
 
-print_thresh_2D <- function(thresh_obj){
+print_thresh_2D <- function(thresh_obj, labX = NULL, labY = NULL){
   # load packages
   library(ggplot2)
   library(ggforce)
@@ -280,10 +288,14 @@ print_thresh_2D <- function(thresh_obj){
   admin <- thresh_obj$args$admin
   
   # define labels for sets or individual indices of bias adjustment
-  biasX <- paste0("Bias (", ifelse(length(ind1) > 1, "Indices ", "Index "), 
-                  paste0(ind1, collapse = ", "), ")")
-  biasY <- paste0("Bias (", ifelse(length(ind2) > 1, "Indices ", "Index "), 
-                  paste0(ind2, collapse = ", "), ")")
+  if (is.null(labX)) {
+    labX <- paste0("Bias (", ifelse(length(ind1) > 1, "Indices ", "Index "), 
+                    paste0(ind1, collapse = ", "), ")")
+  }
+  if (is.null(labY)) {
+    labY <- paste0("Bias (", ifelse(length(ind2) > 1, "Indices ", "Index "), 
+                    paste0(ind2, collapse = ", "), ")")
+  }
   
   plt <- ggplot(data = thresh.df, aes(x = Bias_Ind_1, y = Bias_Ind_2)) +
     geom_hline(yintercept = 0, linewidth = 0.2, color = "grey") +
@@ -301,7 +313,7 @@ print_thresh_2D <- function(thresh_obj){
     
     # label the plot in accordance with the settings of the boundary finding
     # function call
-    labs(x = biasX, y=biasY, color = "New Recommendation") +
+    labs(x = labX, y=labY, color = "New Recommendation") +
     coord_fixed() +
     theme_classic()
   
