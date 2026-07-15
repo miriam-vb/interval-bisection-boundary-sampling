@@ -35,7 +35,7 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
   
   # set decision_function to frequentist threshold analysis using the 
   # projection matrix with max efficacy as default
-  if (preset == 1) {
+  if (preset == 1 || preset == 2) {
     n <- length(data$vec)
     decision_function <- function(data, bias = rep(0,n)) {
       if ("C" %in% names(data)) {
@@ -48,11 +48,22 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
       }
       
       trtm_estimates <- H%*%(data$vec+bias)
-      if (all(trtm_estimates < 0)) {
-        best <- c(0)
+      if (preset == 1){
+        # maximal treatment effect is optimal
+        if (all(trtm_estimates < 0)) {
+          best <- c(1)
+        } else {
+          best <- c(which.max(trtm_estimates) + 1)
+        }
       } else {
-        best <- c(which.max(trtm_estimates))
+        # minimal treatment effect is optimal
+        if (all(trtm_estimates > 0)) {
+          best <- c(1)
+        } else {
+          best <- c(which.min(trtm_estimates) + 1)
+        }
       }
+      
       return(best)
     }
   }
