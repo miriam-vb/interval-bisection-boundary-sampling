@@ -1,34 +1,34 @@
-# ----------------------------------------------------------------------------
-# Interval Bisection Sampling of Bias Thresholds (1D)
-# 
-# This function uses interval bisection to approximate decision-invariant
-# bias adjustment thresholds for network meta-analysis, with options to use 
-# either preset or user-defined decision functions. Thresholds represent 
-# the amount of adjustment needed in an individual data point before the 
-# treatment decision changes.
-#
-# @param data  Data frame containing the NMA data that is passed as an argument
-#    to decision_function
-# @param decision_function  Function accepting NMA data and bias adjustment
-#    used to implement the decision rule at each step of the boundary finding 
-#    method
-# @param indices  Numerical vector indicating the indices of the sequential list
-#    of data points for which bias thresholds will be estimated
-# @param admin  Administrative cutoff value for bias adjustment beyond which 
-#    decision invariance will not be assessed
-# @param tol  Tolerance for the absolute difference between converging boundary
-#    estimates
-# @param preset  Numeric value determining whether a specific preset 
-#    decision_function should be implemented rather than a user-supplied function
-# @param parallel  Boolean determining whether to parallelize the threshold 
-#    convergence method using all available cores (as opposed to sequential 
-#    evaluation)
-#
-# @return  List containing thresh.df, a data frame of thresholds and new 
-#    recommended treatments with columns \code{- Bias Thresh}, \code{- New Rec}, 
-#    \code{+ Bias Thresh}, and \code{+ New Rec}, and args, a list of the 
-#    arguments defined in the original function call
-# ----------------------------------------------------------------------------
+#' ----------------------------------------------------------------------------
+#' Interval Bisection Sampling of Bias Thresholds (1D)
+#' 
+#' This function uses interval bisection to approximate decision-invariant
+#' bias adjustment thresholds for network meta-analysis, with options to use 
+#' either preset or user-defined decision functions. Thresholds represent 
+#' the amount of adjustment needed in an individual data point before the 
+#' treatment decision changes.
+#'
+#' @param data  Data frame containing the NMA data that is passed as an argument
+#'    to decision_function
+#' @param decision_function  Function accepting NMA data and bias adjustment
+#'    used to implement the decision rule at each step of the boundary finding 
+#'    method
+#' @param indices  Numerical vector indicating the indices of the sequential list
+#'    of data points for which bias thresholds will be estimated
+#' @param admin  Administrative cutoff value for bias adjustment beyond which 
+#'    decision invariance will not be assessed
+#' @param tol  Tolerance for the absolute difference between converging boundary
+#'    estimates
+#' @param preset  Numeric value determining whether a specific preset 
+#'    decision_function should be implemented rather than a user-supplied function
+#' @param parallel  Boolean determining whether to parallelize the threshold 
+#'    convergence method using all available cores (as opposed to sequential 
+#'    evaluation)
+#'
+#' @return  List containing thresh.df, a data frame of thresholds and new 
+#'    recommended treatments with columns \code{- Bias Thresh}, \code{- New Rec}, 
+#'    \code{+ Bias Thresh}, and \code{+ New Rec}, and args, a list of the 
+#'    arguments defined in the original function call
+#' ----------------------------------------------------------------------------
 
 bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5, 
                         tol = 10**(-3), preset = 1, parallel = FALSE) {
@@ -83,10 +83,8 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
   # define function for implementing threshold convergence
   thresh_conv <- function(ind) {
     
-    # ensure initial bias is greater than tol
-    bias <- runif(1,min = tol, max = 1)
     b0 <- 0
-    b1 <- bias
+    b1 <- admin/2
     b2 <- admin
     best0 <- best
     bvec <- rep(0,n)
@@ -133,10 +131,8 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
     
     ## repeat for negative bias threshold
     
-    # ensure initial bias is less than -tol
-    bias <- runif(1,min = -1, max = -tol)
     b0 <- 0
-    b1 <- bias
+    b1 <- -admin/2
     b2 <- -admin
     best0 <- best
     bvec <- rep(0,n)
@@ -218,7 +214,5 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
           decision_function = decision_function, indices = indices, 
           admin = admin, tol = tol, preset = preset, parallel = parallel)))
 }
-
-
 
 

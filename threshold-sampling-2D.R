@@ -1,43 +1,43 @@
-# ----------------------------------------------------------------------------
-# Interval Bisection Sampling of Bias Thresholds (2D)
-# 
-# This function uses interval bisection to approximate decision-invariant
-# bias adjustment thresholds for network meta-analysis, with options to use 
-# either preset or user-defined decision functions. Thresholds represent 
-# the amount of simultaneous adjustment needed in up to two individual data 
-# points before the treatment decision changes.
-#
-# @param data  Data frame containing the NMA data that is passed as an argument
-#    to decision_function
-# @param decision_function  Function accepting NMA data and bias adjustment
-#    used to implement the decision rule at each step of the boundary finding 
-#    method
-# @param ind1  Numerical vector indicating the indices of the sequential list
-#    of data points for which the first generic bias adjustment should be 
-#    applied
-# @param ind2  Numerical vector indicating the indices of the sequential list
-#    of data points for which the second generic bias adjustment should be 
-#    applied
-# @param admin  Administrative cutoff value for bias adjustment beyond which 
-#    decision invariance will not be assessed
-# @param tol  Tolerance for the absolute difference between converging boundary
-#    estimates
-# @param rad_jump  Angle (in radians) by which the angle of bias assessment in 
-#    the polar framework will increase for each sequential iteration 
-# @param dist_tol  Euclidean distance tolerance between any two sequential points
-# @param plot  Boolean determining whether the function call should also output
-#    a plot of the invariant region
-# @param preset  Numeric value determining whether a specific preset 
-#    decision_function should be implemented rather than a user-supplied function
-# @param parallel  Boolean determining whether to parallelize the threshold 
-#    convergence method using all available cores (as opposed to sequential 
-#    evaluation)
-#
-# @return  List containing thresh.df, a data frame of thresholds and new 
-#    recommended treatments with columns \code{Bias_Ind_1}, \code{Bias_Ind_2}, 
-#    and \code{New_Rec}, and args, a list of the arguments defined in the 
-#    original function call
-# ----------------------------------------------------------------------------
+#' ----------------------------------------------------------------------------
+#' Interval Bisection Sampling of Bias Thresholds (2D)
+#' 
+#' This function uses interval bisection to approximate decision-invariant
+#' bias adjustment thresholds for network meta-analysis, with options to use 
+#' either preset or user-defined decision functions. Thresholds represent 
+#' the amount of simultaneous adjustment needed in up to two individual data 
+#' points before the treatment decision changes.
+#'
+#' @param data  Data frame containing the NMA data that is passed as an argument
+#'    to decision_function
+#' @param decision_function  Function accepting NMA data and bias adjustment
+#'    used to implement the decision rule at each step of the boundary finding 
+#'    method
+#' @param ind1  Numerical vector indicating the indices of the sequential list
+#'    of data points for which the first generic bias adjustment should be 
+#'    applied
+#' @param ind2  Numerical vector indicating the indices of the sequential list
+#'    of data points for which the second generic bias adjustment should be 
+#'    applied
+#' @param admin  Administrative cutoff value for bias adjustment beyond which 
+#'    decision invariance will not be assessed
+#' @param tol  Tolerance for the absolute difference between converging boundary
+#'    estimates
+#' @param rad_jump  Angle (in radians) by which the angle of bias assessment in 
+#'    the polar framework will increase for each sequential iteration 
+#' @param dist_tol  Euclidean distance tolerance between any two sequential points
+#' @param plot  Boolean determining whether the function call should also output
+#'    a plot of the invariant region
+#' @param preset  Numeric value determining whether a specific preset 
+#'    decision_function should be implemented rather than a user-supplied function
+#' @param parallel  Boolean determining whether to parallelize the threshold 
+#'    convergence method using all available cores (as opposed to sequential 
+#'    evaluation)
+#'
+#' @return  List containing thresh.df, a data frame of thresholds and new 
+#'    recommended treatments with columns \code{Bias_Ind_1}, \code{Bias_Ind_2}, 
+#'    and \code{New_Rec}, and args, a list of the arguments defined in the 
+#'    original function call
+#' ----------------------------------------------------------------------------
 
 bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5, 
                           tol = 10**(-3), rad_jump = pi/90, dist_tol = 0.5, 
@@ -105,19 +105,23 @@ bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5,
     theta <- 2*pi*(core-1)/n_cores
     grain <- 0
     while (theta <= 2*pi*(core/n_cores)) {
-      # ensure initial bias is greater than tol
-      r <- runif(1,min = tol, max = 1)
-      r0 <- 0
-      r1 <- r
-      r2 <- admin
+      if (nrow(thresh.df) == 0 || tail(thresh.df,1)[,3] == 'Admin') {
+        b1 <- admin/2
+      } else {
+        # initialize bias to radial distance of last estimated threshold point
+        b1 <- CartToPol(as.numeric(tail(thresh.df,1)[,1]),
+                        as.numeric(tail(thresh.df,1)[,2]))$r
+      }
+      b0 <- 0
+      b2 <- admin
       best0 <- best
       
       bvec <- rep(0,n)
       for (i in ind1) {
-        bvec[i] <- PolToCart(r,theta)$x
+        bvec[i] <- PolToCart(b1,theta)$x
       }
       for (i in ind2) {
-        bvec[i] <- PolToCart(r,theta)$y
+        bvec[i] <- PolToCart(b1,theta)$y
       }
       best1 <- decision_function(data, bias = bvec)
       
@@ -146,51 +150,51 @@ bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5,
         trt <- "Admin"
       } else {
         # iterate until biases are within tolerance
-        while(abs(r2 - r0) > tol) {
+        while(abs(b2 - b0) > tol) {
           # select interval [r0,r1] or [r1,r2], then obtain midpoint of 
           # chosen interval and update variables
           if (!setequal(best0,best1)) {
-            min <- r0
-            max <- r1
-            mid <- min + (r1 - r0)/2
-            r0 <- min
-            r1 <- mid
-            r2 <- max
+            min <- b0
+            max <- b1
+            mid <- min + (b1 - b0)/2
+            b0 <- min
+            b1 <- mid
+            b2 <- max
           } else if (!setequal(best1,best2)) {
-            min <- r1
-            max <- r2
-            mid <- min + (r2 - r1)/2
-            r0 <- min
-            r1 <- mid
-            r2 <- max
+            min <- b1
+            max <- b2
+            mid <- min + (b2 - b1)/2
+            b0 <- min
+            b1 <- mid
+            b2 <- max
           }
           # update treatment recommendations for each point of bias
           for (i in ind1) {
-            bvec[i] <- PolToCart(r0,theta)$x
+            bvec[i] <- PolToCart(b0,theta)$x
           }
           for (i in ind2) {
-            bvec[i] <- PolToCart(r0,theta)$y
+            bvec[i] <- PolToCart(b0,theta)$y
           }
           best0 <- decision_function(data, bias = bvec)
           
           for (i in ind1) {
-            bvec[i] <- PolToCart(r1,theta)$x
+            bvec[i] <- PolToCart(b1,theta)$x
           }
           for (i in ind2) {
-            bvec[i] <- PolToCart(r1,theta)$y
+            bvec[i] <- PolToCart(b1,theta)$y
           }
           best1 <- decision_function(data, bias = bvec)
           
           for (i in ind1) {
-            bvec[i] <- PolToCart(r2,theta)$x
+            bvec[i] <- PolToCart(b2,theta)$x
           }
           for (i in ind2) {
-            bvec[i] <- PolToCart(r2,theta)$y
+            bvec[i] <- PolToCart(b2,theta)$y
           }
           best2 <- decision_function(data, bias = bvec)
         }
-        x <- PolToCart(r0,theta)$x
-        y <- PolToCart(r0,theta)$y
+        x <- PolToCart(b0,theta)$x
+        y <- PolToCart(b0,theta)$y
         trt <- paste0(best2, collapse = " ")
         if (nrow(thresh.df) != 0) {
           if (eucDist(c(x,y),c(as.numeric(thresh.df[nrow(thresh.df),1]),
@@ -266,26 +270,26 @@ bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5,
 }
 
 
-# ----------------------------------------------------------------------------
-# Visualization of Bias Thresholds (2D)
-# 
-# This function allows for repeated plotting of the decision-invariant bias 
-# adjustment thresholds and invariant region for two-dimensional threshold 
-# analysis, and is called by \code{bias-thresh-2D} automatically.
-#
-# @param thresh_obj  List object obtained from \code{bias-thresh-2D} function 
-#    call containing the estimated decision-invariant bias
-#    adjustment thresholds and a list of the arguments defined in the 
-#    original function call 
-# @param labX  String object containing the label for the x axis of the plot. 
-#    Defaults to NULL, in which case the label is automatically generated to
-#    report the set of indices (ind1) to which the first bias adjustment was 
-#    applied.
-# @param labY  String object containing the label for the y axis of the plot. 
-#    Defaults to NULL, in which case the label is automatically generated to
-#    report the set of indices (ind2) to which the second bias adjustment was 
-#    applied.
-# ----------------------------------------------------------------------------
+#' ----------------------------------------------------------------------------
+#' Visualization of Bias Thresholds (2D)
+#' 
+#' This function allows for repeated plotting of the decision-invariant bias 
+#' adjustment thresholds and invariant region for two-dimensional threshold 
+#' analysis, and is called by \code{bias-thresh-2D} automatically.
+#'
+#' @param thresh_obj  List object obtained from \code{bias-thresh-2D} function 
+#'    call containing the estimated decision-invariant bias
+#'    adjustment thresholds and a list of the arguments defined in the 
+#'    original function call 
+#' @param labX  String object containing the label for the x axis of the plot. 
+#'    Defaults to NULL, in which case the label is automatically generated to
+#'    report the set of indices (ind1) to which the first bias adjustment was 
+#'    applied.
+#' @param labY  String object containing the label for the y axis of the plot. 
+#'    Defaults to NULL, in which case the label is automatically generated to
+#'    report the set of indices (ind2) to which the second bias adjustment was 
+#'    applied.
+#' ----------------------------------------------------------------------------
 
 print_thresh_2D <- function(thresh_obj, labX = NULL, labY = NULL){
   # load packages
