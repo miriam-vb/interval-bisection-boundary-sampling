@@ -7,8 +7,8 @@
 #' the amount of simultaneous adjustment needed in up to two individual data 
 #' points before the treatment decision changes.
 #'
-#' @param data  Data frame containing the NMA data that is passed as an argument
-#'    to decision_function
+#' @param data  Object (data frame, list, etc.) containing the NMA data that is 
+#'    passed as an argument to decision_function
 #' @param decision_function  Function accepting NMA data and bias adjustment
 #'    used to implement the decision rule at each step of the boundary finding 
 #'    method
