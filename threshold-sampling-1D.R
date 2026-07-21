@@ -88,9 +88,9 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
     b2 <- admin
     best0 <- best
     bvec <- rep(0,n)
-    bvec[ind] <- bias
+    bvec[ind] <- b1
     best1 <- decision_function(data, bias = bvec)
-    bvec[ind] <- admin
+    bvec[ind] <- b2
     best2 <- decision_function(data, bias = bvec)
     
     if (setequal(best2,best)) {
@@ -126,7 +126,7 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
         best2 <- decision_function(data, bias = bvec)
       }
       u <- b0
-      trtU <- paste0(best2, collapse = " ")
+      trtU <- paste0(best2, collapse = ", ")
     }
     
     ## repeat for negative bias threshold
@@ -136,9 +136,9 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
     b2 <- -admin
     best0 <- best
     bvec <- rep(0,n)
-    bvec[ind] <- bias
+    bvec[ind] <- b1
     best1 <- decision_function(data, bias = bvec)
-    bvec[ind] <- -admin
+    bvec[ind] <- b2
     best2 <- decision_function(data, bias = bvec)
     
     if (setequal(best2,best)) {
@@ -174,7 +174,7 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
         best2 <- decision_function(data, bias = bvec)
       }
       l <- b0
-      trtL <- paste0(best2, collapse = " ")
+      trtL <- paste0(best2, collapse = ", ")
     }
     
     # store bias threshold and admin indicator/new superior treatment

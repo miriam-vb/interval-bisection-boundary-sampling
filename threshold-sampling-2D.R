@@ -195,7 +195,7 @@ bias_thresh_2D <- function(data, decision_function, ind1, ind2, admin = 5,
         }
         x <- PolToCart(b0,theta)$x
         y <- PolToCart(b0,theta)$y
-        trt <- paste0(best2, collapse = " ")
+        trt <- paste0(best2, collapse = ", ")
         if (nrow(thresh.df) != 0) {
           if (eucDist(c(x,y),c(as.numeric(thresh.df[nrow(thresh.df),1]),
                                as.numeric(thresh.df[nrow(thresh.df),2]))) > dist_tol) {
