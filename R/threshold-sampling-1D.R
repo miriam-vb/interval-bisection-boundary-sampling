@@ -26,11 +26,12 @@
 #'
 #' @return  List containing thresh.df, a data frame of thresholds and new 
 #'    recommended treatments with columns \code{- Bias Thresh}, \code{- New Rec}, 
-#'    \code{+ Bias Thresh}, and \code{+ New Rec}, and args, a list of the 
-#'    arguments defined in the original function call
+#'    \code{+ Bias Thresh}, and \code{+ New Rec}, best, the vector of optimal 
+#'    treatments recommended by the decision function before bias adjustment,
+#'    and args, a list of the arguments defined in the original function call
 #' ----------------------------------------------------------------------------
 
-bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5, 
+bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 10, 
                         tol = 10**(-3), preset = 1, parallel = FALSE) {
   
   # set decision_function to frequentist threshold analysis using the 
@@ -210,9 +211,10 @@ bias_thresh_1D <- function(data, decision_function = NULL, indices, admin = 5,
   # (or that it was admin cutoff, indicating a potential invariant region)
   colnames(thresh.df) <- c("- Bias Thresh", "- New Rec", 
                            "+ Bias Thresh", "+ New Rec")
-  return(list(thresh.df = thresh.df, args = list(data = data, 
-          decision_function = decision_function, indices = indices, 
-          admin = admin, tol = tol, preset = preset, parallel = parallel)))
+  return(list(thresh.df = thresh.df, best = best, 
+              args = list(data = data, decision_function = decision_function, 
+                          indices = indices, admin = admin, tol = tol, 
+                          preset = preset, parallel = parallel)))
 }
 
 
